@@ -311,12 +311,21 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .split(f.area());
 
                     let visible_height = chunks[0].height.saturating_sub(2) as usize;
-                    let visible_content: Vec<Line> = content
-                        .iter()
-                        .skip(*scroll)
-                        .take(visible_height)
-                        .cloned()
-                        .collect();
+                    let total_lines = content.len();
+
+                    // Build visible content with tildes for lines beyond EOF
+                    let mut visible_content: Vec<Line> = Vec::new();
+                    for i in 0..visible_height {
+                        let line_idx = scroll + i;
+                        if line_idx < total_lines {
+                            visible_content.push(content[line_idx].clone());
+                        } else {
+                            // Add tilde for empty lines beyond EOF
+                            visible_content.push(Line::from(
+                                Span::styled("~", Style::default().fg(Color::DarkGray))
+                            ));
+                        }
+                    }
 
                     let file_name = PathBuf::from(path)
                         .file_name()
@@ -324,14 +333,27 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .unwrap_or(path)
                         .to_string();
 
+                    // Calculate scroll position indicator
+                    let position = if total_lines == 0 {
+                        "Empty".to_string()
+                    } else if *scroll == 0 {
+                        "Top".to_string()
+                    } else if scroll + visible_height >= total_lines {
+                        "Bottom".to_string()
+                    } else {
+                        let percentage = ((scroll + visible_height / 2) * 100) / total_lines;
+                        format!("{}%", percentage)
+                    };
+
                     let paragraph = Paragraph::new(visible_content)
                         .block(
                             Block::default()
                                 .borders(Borders::ALL)
-                                .title(format!(" Viewing: {} (line {}/{}) ",
+                                .title(format!(" Viewing: {} ({} - line {}/{}) ",
                                     file_name,
+                                    position,
                                     scroll + 1,
-                                    content.len()
+                                    total_lines.max(1)
                                 ))
                         );
 
@@ -369,7 +391,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         _ => {}
                     };
                 }
-                AppMode::FileView { content, .. } => {
+                AppMode::FileView {  .. } => {
                     let visible_height = terminal.size()?.height.saturating_sub(5) as usize;
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => app.exit_file_view(),
