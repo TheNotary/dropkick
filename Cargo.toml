@@ -7,4 +7,4 @@ edition = "2024"
 ratatui = "0.28"
 crossterm = "0.28"
 tui-tree-widget = "0.22"
-
+syntect = "5.0"
