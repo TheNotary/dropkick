@@ -135,8 +135,15 @@ fn highlight_file(
     ss: &SyntaxSet,
     ts: &ThemeSet,
 ) -> Result<Vec<Line<'static>>, Box<dyn Error>> {
+    // Strip .tt extension if present to get the actual file type
+    let syntax_path = if path.extension().and_then(|e| e.to_str()) == Some("tt") {
+        path.with_extension("")
+    } else {
+        path.to_path_buf()
+    };
+
     let syntax = ss
-        .find_syntax_for_file(path)?
+        .find_syntax_for_file(&syntax_path)?
         .unwrap_or_else(|| ss.find_syntax_plain_text());
 
     let theme = &ts.themes["base16-ocean.dark"];
