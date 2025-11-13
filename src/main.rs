@@ -135,9 +135,15 @@ fn highlight_file(
     ss: &SyntaxSet,
     ts: &ThemeSet,
 ) -> Result<Vec<Line<'static>>, Box<dyn Error>> {
-    // Strip .tt extension if present to get the actual file type
+    // Strip .tt extension if present to get the actual file type for syntax detection
     let syntax_path = if path.extension().and_then(|e| e.to_str()) == Some("tt") {
-        path.with_extension("")
+        // Remove .tt and use the remaining path for syntax detection
+        let path_str = path.to_string_lossy();
+        if let Some(stripped) = path_str.strip_suffix(".tt") {
+            PathBuf::from(stripped)
+        } else {
+            path.to_path_buf()
+        }
     } else {
         path.to_path_buf()
     };
