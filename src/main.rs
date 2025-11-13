@@ -150,8 +150,9 @@ fn highlight_file(
         let spans: Vec<Span> = ranges
             .into_iter()
             .map(|(style, text)| {
+                let text_expanded = text.replace('\t', "  ");
                 Span::styled(
-                    text.to_string(),
+                    text_expanded,
                     Style::default().fg(syntect_to_ratatui_color(style.foreground)),
                 )
             })
