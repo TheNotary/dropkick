@@ -11,6 +11,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 use std::{
+    collections::HashSet,
     error::Error,
     fs, io,
     path::{Path, PathBuf},
@@ -20,19 +21,25 @@ use tui_tree_widget::{Tree, TreeItem, TreeState};
 struct App {
     tree_state: TreeState<String>,
     items: Vec<TreeItem<'static, String>>,
+    selected_paths: HashSet<String>,
 }
 
 impl App {
     fn new(root_path: &Path) -> Result<Self, Box<dyn Error>> {
         let items = build_tree(root_path)?;
         let mut tree_state = TreeState::default();
+        let selected_paths = HashSet::new();
 
         // Open the first item by default
         if !items.is_empty() {
             tree_state.open(vec![items[0].identifier().clone()]);
         }
 
-        Ok(Self { tree_state, items })
+        Ok(Self {
+            tree_state,
+            items,
+            selected_paths,
+        })
     }
 }
 
@@ -131,7 +138,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             f.render_stateful_widget(tree_widget, chunks[0], &mut app.tree_state);
 
             let help =
-                Paragraph::new("↑/↓: Navigate | ←/→: Collapse/Expand | Space: Toggle | q: Quit")
+                Paragraph::new("↑/↓: Navigate | ←/→: Collapse/Expand | Space: Select | e: Extract to Working Dir | q: Quit")
                     .block(Block::default().borders(Borders::ALL).title(" Help "))
                     .style(Style::default().fg(Color::Gray));
 
@@ -145,7 +152,25 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KeyCode::Up | KeyCode::Char('k') => app.tree_state.key_up(),
                 KeyCode::Left | KeyCode::Char('h') => app.tree_state.key_left(),
                 KeyCode::Right | KeyCode::Char('l') => app.tree_state.key_right(),
-                KeyCode::Char(' ') => app.tree_state.toggle_selected(),
+                KeyCode::Char(' ') => {
+                    // Toggle selection of current item
+                    if let Some(selected) = app.tree_state.selected().first() {
+                        if app.selected_paths.contains(selected) {
+                            app.selected_paths.remove(selected);
+                        } else {
+                            app.selected_paths.insert(selected.clone());
+                        }
+                    }
+                    false
+                }
+                KeyCode::Char('e') => {
+                    // Print all selected paths and exit
+                    for path in &app.selected_paths {
+                        println!("{}", path);
+                    }
+                    false
+                    // break;
+                }
                 _ => false,
             };
         }
@@ -159,6 +184,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
+
+    println!("It's done");
 
     Ok(())
 }
