@@ -391,7 +391,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         _ => {}
                     };
                 }
-                AppMode::FileView {  .. } => {
+                AppMode::FileView { .. } => {
                     let visible_height = terminal.size()?.height.saturating_sub(5) as usize;
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => app.exit_file_view(),
