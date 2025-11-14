@@ -47,7 +47,7 @@ impl App {
         let items = build_tree(root_path)?;
         let mut tree_state = TreeState::default();
 
-        // Open the first item by default
+        // Open and select the first item by default
         if !items.is_empty() {
             let first_id = items[0].identifier().clone();
             tree_state.open(vec![first_id.clone()]);
@@ -117,6 +117,16 @@ impl App {
             if *scroll + max_lines < content.len() {
                 *scroll += 1;
             }
+        }
+    }
+
+    fn handle_left_key(&mut self) {
+        self.tree_state.key_left();
+
+        // If selection is empty after left, re-select the first item
+        if self.tree_state.selected().is_empty() && !self.items.is_empty() {
+            let first_id = self.items[0].identifier().clone();
+            self.tree_state.select(vec![first_id]);
         }
     }
 
@@ -501,7 +511,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                     app.tree_state.key_up();
                                 }
                                 KeyCode::Left | KeyCode::Char('h') => {
-                                    app.tree_state.key_left();
+                                    app.handle_left_key();
                                 }
                                 KeyCode::Char(' ') => app.toggle_selected_file(),
                                 _ => {}
