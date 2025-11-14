@@ -166,6 +166,7 @@ dependencies = [
  "ratatui",
  "syntect",
  "tui-tree-widget",
+ "two-face",
 ]
 
 [[package]]
@@ -770,6 +771,17 @@ checksum = "df0b54061d997162f225bed5d2147574af0648480214759a000e33f6cea0017a"
 dependencies = [
  "ratatui",
  "unicode-width",
+]
+
+[[package]]
+name = "two-face"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d112cfd41c1387546416bcf49c4ae2a1fcacda0d42c9e97120e9798c90c0923"
+dependencies = [
+ "serde",
+ "serde_derive",
+ "syntect",
 ]
 
 [[package]]

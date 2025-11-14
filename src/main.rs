@@ -160,7 +160,7 @@ fn get_syntax_name_for_file(path: &Path) -> Option<&'static str> {
         let name = file_name.strip_suffix(".tt").unwrap_or(file_name);
 
         match name.to_lowercase().as_str() {
-            "dockerfile" => return Some("Dockerfile"),
+            "dockerfile" => return Some("Docker"),
             "gemfile" | "rakefile" | "guardfile" | "capfile" | "vagrantfile" => {
                 return Some("Ruby");
             }
