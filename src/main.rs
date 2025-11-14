@@ -561,6 +561,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         println!("{}", "=".repeat(50));
         println!("Total: {} file(s) selected\n", app.selected_files.len());
+        // TODO: Map over the files, and then copy them into the working directory
     } else if !should_exit {
         println!("\nNo files selected.\n");
     }
