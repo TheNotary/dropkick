@@ -301,10 +301,16 @@ fn build_tree_recursive(path: &Path) -> Result<Vec<TreeItem<'static, String>>, B
 }
 
 fn get_item_text(path: &str) -> String {
-    PathBuf::from(path)
+    let file_name = PathBuf::from(path)
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or(path)
+        .to_string();
+
+    // Strip .tt extension for display
+    file_name
+        .strip_suffix(".tt")
+        .unwrap_or(&file_name)
         .to_string()
 }
 
