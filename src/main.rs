@@ -135,21 +135,31 @@ fn highlight_file(
     ss: &SyntaxSet,
     ts: &ThemeSet,
 ) -> Result<Vec<Line<'static>>, Box<dyn Error>> {
+
     // Determine the syntax based on file extension
+
+    // if the file ends in a .tt extension
     let syntax = if path.extension().and_then(|e| e.to_str()) == Some("tt") {
-        // For .tt files, strip the .tt and get syntax from the underlying extension
+
+        //
+        // Strip the .tt from file paths and get syntax from the underlying extension
+        //
         let path_str = path.to_string_lossy();
+
+        // If the file path ends in '.tt'
         if let Some(stripped) = path_str.strip_suffix(".tt") {
-            let underlying_path = Path::new::<str>(stripped.as_ref());
-            // Use find_syntax_by_extension which is safer (doesn't do IO)
-            if let Some(ext) = underlying_path.extension().and_then(|e| e.to_str()) {
+            let path = Path::new::<str>(stripped.as_ref());
+
+            // the line here is a repetition of the let syntax line... I think
+            // it's bad at programming Rust???
+            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                 ss.find_syntax_by_extension(ext)
                     .unwrap_or_else(|| ss.find_syntax_plain_text())
             } else {
                 ss.find_syntax_plain_text()
             }
-        } else {
-            ss.find_syntax_plain_text()
+        } else { // if the file path string doesn't have the .tt extension
+            ss.find_syntax_plain_text() // wait, I will not get here ever?
         }
     } else {
         // For non-.tt files, use the extension directly
