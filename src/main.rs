@@ -84,6 +84,9 @@ impl App {
                     content: highlighted,
                     scroll: 0,
                 };
+            } else if path.is_dir() {
+                // For directories, just expand them
+                self.tree_state.key_right();
             }
         }
         Ok(())
@@ -331,7 +334,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     f.render_stateful_widget(tree_widget, chunks[0], &mut app.tree_state);
 
-                    let help = Paragraph::new("↑/k: Up | ↓/j: Down | ←/h: Collapse | →/l: Expand | Space: Toggle | v: View | e: Export | q: Quit")
+                    let help = Paragraph::new("↑/k: Up | ↓/j: Down | ←/h: Collapse | →/l: Expand/View | Space: Toggle | e: Export | q: Quit")
                         .block(Block::default().borders(Borders::ALL).title(" Help "))
                         .style(Style::default().fg(Color::Gray));
 
@@ -392,7 +395,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     f.render_widget(paragraph, chunks[0]);
 
-                    let help = Paragraph::new("↑/k: Scroll Up | ↓/j: Scroll Down | q/Esc: Back to Tree")
+                    let help = Paragraph::new("↑/k: Scroll Up | ↓/j: Scroll Down | ←/h: Back to Tree | q/Esc: Back to Tree")
                         .block(Block::default().borders(Borders::ALL).title(" Help "))
                         .style(Style::default().fg(Color::Gray));
 
@@ -407,7 +410,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     match key.code {
                         KeyCode::Char('q') => should_exit = true,
                         KeyCode::Char('e') => break,
-                        KeyCode::Char('v') => app.view_selected_file(&ss, &ts)?,
+                        KeyCode::Char('v') | KeyCode::Right | KeyCode::Char('l') => {
+                            app.view_selected_file(&ss, &ts)?;
+                        }
                         KeyCode::Down | KeyCode::Char('j') => {
                             app.tree_state.key_down();
                         }
@@ -417,9 +422,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                         KeyCode::Left | KeyCode::Char('h') => {
                             app.tree_state.key_left();
                         }
-                        KeyCode::Right | KeyCode::Char('l') => {
-                            app.tree_state.key_right();
-                        }
                         KeyCode::Char(' ') => app.toggle_selected_file(),
                         _ => {}
                     };
@@ -427,7 +429,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 AppMode::FileView { .. } => {
                     let visible_height = terminal.size()?.height.saturating_sub(5) as usize;
                     match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => app.exit_file_view(),
+                        KeyCode::Char('q') | KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => {
+                            app.exit_file_view();
+                        }
                         KeyCode::Down | KeyCode::Char('j') => app.scroll_down(visible_height),
                         KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
                         _ => {}
