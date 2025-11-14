@@ -77,14 +77,22 @@ impl App {
         if let Some(selected) = self.tree_state.selected().last() {
             let path = PathBuf::from(selected);
             if path.is_file() {
-                let content = fs::read_to_string(&path)?;
-                let highlighted = highlight_file(&content, &path, ss, ts)?;
+                // Try to read as UTF-8, skip if binary
+                match fs::read_to_string(&path) {
+                    Ok(content) => {
+                        let highlighted = highlight_file(&content, &path, ss, ts)?;
 
-                self.mode = AppMode::FileView {
-                    path: selected.clone(),
-                    content: highlighted,
-                    scroll: 0,
-                };
+                        self.mode = AppMode::FileView {
+                            path: selected.clone(),
+                            content: highlighted,
+                            scroll: 0,
+                        };
+                    }
+                    Err(_) => {
+                        // File is likely binary, just stay in tree view
+                        // Could optionally show an error message here
+                    }
+                }
             } else if path.is_dir() {
                 // For directories, just expand them
                 self.tree_state.key_right();
@@ -139,12 +147,10 @@ fn highlight_file(
     ss: &SyntaxSet,
     ts: &ThemeSet,
 ) -> Result<Vec<Line<'static>>, Box<dyn Error>> {
-
     // Determine the syntax based on file extension
 
     // if the file ends in a .tt extension
     let syntax = if path.extension().and_then(|e| e.to_str()) == Some("tt") {
-
         //
         // Strip the .tt from file paths and get syntax from the underlying extension
         //
@@ -162,7 +168,8 @@ fn highlight_file(
             } else {
                 ss.find_syntax_plain_text()
             }
-        } else { // if the file path string doesn't have the .tt extension
+        } else {
+            // if the file path string doesn't have the .tt extension
             ss.find_syntax_plain_text() // wait, I will not get here ever?
         }
     } else {
@@ -281,6 +288,19 @@ fn render_tree_with_checkboxes<'a>(
         .collect()
 }
 
+fn cleanup_terminal(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+) -> Result<(), Box<dyn Error>> {
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     // Load syntax highlighting resources
     let ss = SyntaxSet::load_defaults_newlines();
@@ -303,9 +323,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut app = App::new(&templates_path)?;
     let mut should_exit = false;
 
-    // Main loop
-    while !should_exit {
-        terminal.draw(|f| {
+    // Main loop with error handling
+    let result = (|| -> Result<(), Box<dyn Error>> {
+        while !should_exit {
+            terminal.draw(|f| {
             match &app.mode {
                 AppMode::TreeView => {
                     let chunks = Layout::default()
@@ -405,65 +426,70 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         })?;
 
-        // Poll for events with a small timeout
-        if poll(Duration::from_millis(16))? {
-            // Drain all pending events and only process the last one
-            let mut last_key_event = None;
-            while poll(Duration::from_millis(0))? {
-                if let Event::Key(key) = event::read()? {
-                    last_key_event = Some(key);
-                }
-            }
-
-            if let Some(key) = last_key_event {
-                match &app.mode {
-                    AppMode::TreeView => {
-                        match key.code {
-                            KeyCode::Char('q') => should_exit = true,
-                            KeyCode::Char('e') => break,
-                            KeyCode::Char('v') | KeyCode::Right | KeyCode::Char('l') => {
-                                app.view_selected_file(&ss, &ts)?;
-                            }
-                            KeyCode::Down | KeyCode::Char('j') => {
-                                app.tree_state.key_down();
-                            }
-                            KeyCode::Up | KeyCode::Char('k') => {
-                                app.tree_state.key_up();
-                            }
-                            KeyCode::Left | KeyCode::Char('h') => {
-                                app.tree_state.key_left();
-                            }
-                            KeyCode::Char(' ') => app.toggle_selected_file(),
-                            _ => {}
-                        };
+            // Poll for events with a small timeout
+            if poll(Duration::from_millis(0))? {
+                // Drain all pending events and only process the last one
+                let mut last_key_event = None;
+                while poll(Duration::from_millis(0))? {
+                    if let Event::Key(key) = event::read()? {
+                        last_key_event = Some(key);
                     }
-                    AppMode::FileView { content, .. } => {
-                        let visible_height = terminal.size()?.height.saturating_sub(5) as usize;
-                        match key.code {
-                            KeyCode::Char('q')
-                            | KeyCode::Esc
-                            | KeyCode::Left
-                            | KeyCode::Char('h') => {
-                                app.exit_file_view();
-                            }
-                            KeyCode::Down | KeyCode::Char('j') => app.scroll_down(visible_height),
-                            KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
-                            _ => {}
-                        };
+                }
+
+                if let Some(key) = last_key_event {
+                    match &app.mode {
+                        AppMode::TreeView => {
+                            match key.code {
+                                KeyCode::Char('q') => should_exit = true,
+                                KeyCode::Char('e') => break,
+                                KeyCode::Char('v') | KeyCode::Right | KeyCode::Char('l') => {
+                                    app.view_selected_file(&ss, &ts)?;
+                                }
+                                KeyCode::Down | KeyCode::Char('j') => {
+                                    app.tree_state.key_down();
+                                }
+                                KeyCode::Up | KeyCode::Char('k') => {
+                                    app.tree_state.key_up();
+                                }
+                                KeyCode::Left | KeyCode::Char('h') => {
+                                    app.tree_state.key_left();
+                                }
+                                KeyCode::Char(' ') => app.toggle_selected_file(),
+                                _ => {}
+                            };
+                        }
+                        AppMode::FileView { content, .. } => {
+                            let visible_height = terminal.size()?.height.saturating_sub(5) as usize;
+                            match key.code {
+                                KeyCode::Char('q')
+                                | KeyCode::Esc
+                                | KeyCode::Left
+                                | KeyCode::Char('h') => {
+                                    app.exit_file_view();
+                                }
+                                KeyCode::Down | KeyCode::Char('j') => {
+                                    app.scroll_down(visible_height)
+                                }
+                                KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
+                                _ => {}
+                            };
+                        }
                     }
                 }
             }
         }
-    }
 
-    // Restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
+        Ok(())
+    })();
+
+    // Always restore terminal, even on error
+    cleanup_terminal(&mut terminal)?;
+
+    // Handle the result after terminal is cleaned up
+    if let Err(e) = result {
+        eprintln!("Error: {}", e);
+        return Err(e);
+    }
 
     // Print selected files if user pressed 'e'
     if !should_exit && !app.selected_files.is_empty() {
