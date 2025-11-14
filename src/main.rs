@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, poll},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -16,6 +16,7 @@ use std::{
     error::Error,
     fs, io,
     path::{Path, PathBuf},
+    time::Duration,
 };
 use syntect::{
     easy::HighlightLines,
@@ -404,38 +405,52 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         })?;
 
-        if let Event::Key(key) = event::read()? {
-            match &app.mode {
-                AppMode::TreeView => {
-                    match key.code {
-                        KeyCode::Char('q') => should_exit = true,
-                        KeyCode::Char('e') => break,
-                        KeyCode::Char('v') | KeyCode::Right | KeyCode::Char('l') => {
-                            app.view_selected_file(&ss, &ts)?;
-                        }
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            app.tree_state.key_down();
-                        }
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            app.tree_state.key_up();
-                        }
-                        KeyCode::Left | KeyCode::Char('h') => {
-                            app.tree_state.key_left();
-                        }
-                        KeyCode::Char(' ') => app.toggle_selected_file(),
-                        _ => {}
-                    };
+        // Poll for events with a small timeout
+        if poll(Duration::from_millis(16))? {
+            // Drain all pending events and only process the last one
+            let mut last_key_event = None;
+            while poll(Duration::from_millis(0))? {
+                if let Event::Key(key) = event::read()? {
+                    last_key_event = Some(key);
                 }
-                AppMode::FileView { .. } => {
-                    let visible_height = terminal.size()?.height.saturating_sub(5) as usize;
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => {
-                            app.exit_file_view();
-                        }
-                        KeyCode::Down | KeyCode::Char('j') => app.scroll_down(visible_height),
-                        KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
-                        _ => {}
-                    };
+            }
+
+            if let Some(key) = last_key_event {
+                match &app.mode {
+                    AppMode::TreeView => {
+                        match key.code {
+                            KeyCode::Char('q') => should_exit = true,
+                            KeyCode::Char('e') => break,
+                            KeyCode::Char('v') | KeyCode::Right | KeyCode::Char('l') => {
+                                app.view_selected_file(&ss, &ts)?;
+                            }
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                app.tree_state.key_down();
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                app.tree_state.key_up();
+                            }
+                            KeyCode::Left | KeyCode::Char('h') => {
+                                app.tree_state.key_left();
+                            }
+                            KeyCode::Char(' ') => app.toggle_selected_file(),
+                            _ => {}
+                        };
+                    }
+                    AppMode::FileView { content, .. } => {
+                        let visible_height = terminal.size()?.height.saturating_sub(5) as usize;
+                        match key.code {
+                            KeyCode::Char('q')
+                            | KeyCode::Esc
+                            | KeyCode::Left
+                            | KeyCode::Char('h') => {
+                                app.exit_file_view();
+                            }
+                            KeyCode::Down | KeyCode::Char('j') => app.scroll_down(visible_height),
+                            KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
+                            _ => {}
+                        };
+                    }
                 }
             }
         }
