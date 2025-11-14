@@ -49,7 +49,9 @@ impl App {
 
         // Open the first item by default
         if !items.is_empty() {
-            tree_state.open(vec![items[0].identifier().clone()]);
+            let first_id = items[0].identifier().clone();
+            tree_state.open(vec![first_id.clone()]);
+            tree_state.select(vec![first_id]);
         }
 
         Ok(Self {
