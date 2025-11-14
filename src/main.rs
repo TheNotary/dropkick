@@ -14,17 +14,19 @@ use ratatui::{
 use std::{
     collections::HashSet,
     error::Error,
-    fs, io,
+    fs::{self, copy},
+    io,
     path::{Path, PathBuf},
     time::Duration,
 };
 use syntect::{
     easy::HighlightLines,
-    highlighting::{Style as SyntectStyle, ThemeSet},
+    highlighting::{Style as SyntectStyle, Theme},
     parsing::SyntaxSet,
     util::LinesWithEndings,
 };
 use tui_tree_widget::{Tree, TreeItem, TreeState};
+use two_face::theme::EmbeddedThemeName;
 
 enum AppMode {
     TreeView,
@@ -75,14 +77,14 @@ impl App {
         }
     }
 
-    fn view_selected_file(&mut self, ss: &SyntaxSet, ts: &ThemeSet) -> Result<(), Box<dyn Error>> {
+    fn view_selected_file(&mut self, ss: &SyntaxSet, theme: &Theme) -> Result<(), Box<dyn Error>> {
         if let Some(selected) = self.tree_state.selected().last() {
             let path = PathBuf::from(selected);
             if path.is_file() {
                 // Try to read as UTF-8, skip if binary
                 match fs::read_to_string(&path) {
                     Ok(content) => {
-                        let highlighted = highlight_file(&content, &path, ss, ts)?;
+                        let highlighted = highlight_file(&content, &path, ss, theme)?;
 
                         self.mode = AppMode::FileView {
                             path: selected.clone(),
@@ -153,42 +155,47 @@ fn syntect_to_ratatui_color(color: syntect::highlighting::Color) -> Color {
     Color::Rgb(color.r, color.g, color.b)
 }
 
-fn get_syntax_name_for_file(path: &Path) -> Option<&'static str> {
+fn get_syntax_for_special_file<'a>(
+    path: &Path,
+    ss: &'a SyntaxSet,
+) -> Option<&'a syntect::parsing::SyntaxReference> {
     // Handle files without extensions by name
     if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
         // Strip .tt if present to get the actual filename
         let name = file_name.strip_suffix(".tt").unwrap_or(file_name);
 
         match name.to_lowercase().as_str() {
-            "dockerfile" => return Some("Docker"),
-            "gemfile" | "rakefile" | "guardfile" | "capfile" | "vagrantfile" => {
-                return Some("Ruby");
+            "dockerfile" => {
+                // Try multiple possible names/extensions for Docker
+                ss.find_syntax_by_name("Docker")
+                    .or_else(|| ss.find_syntax_by_extension("dockerfile"))
+                    .or_else(|| ss.find_syntax_by_name("Dockerfile"))
             }
-            "makefile" => return Some("Makefile"),
-            "cmakelists.txt" => return Some("CMake"),
-            "justfile" => return Some("Just"),
-            _ => {}
+            "gemfile" | "rakefile" | "guardfile" | "capfile" | "vagrantfile" => {
+                ss.find_syntax_by_name("Ruby")
+            }
+            "makefile" => ss.find_syntax_by_name("Makefile"),
+            "cmakelists.txt" => ss.find_syntax_by_name("CMake"),
+            "justfile" => ss.find_syntax_by_name("Just"),
+            _ => None,
         }
+    } else {
+        None
     }
-    None
 }
 
 fn highlight_file(
     content: &str,
     path: &Path,
     ss: &SyntaxSet,
-    ts: &ThemeSet,
+    theme: &Theme,
 ) -> Result<Vec<Line<'static>>, Box<dyn Error>> {
     // Determine the syntax based on file extension or name
-    let syntax = if let Some(syntax_name) = get_syntax_name_for_file(path) {
-        // Try to find by explicit syntax name
-        ss.find_syntax_by_name(syntax_name)
-            .unwrap_or_else(|| ss.find_syntax_plain_text())
+    let syntax = if let Some(syntax) = get_syntax_for_special_file(path, ss) {
+        syntax
     } else if path.extension().and_then(|e| e.to_str()) == Some("tt") {
         // For .tt files, strip the .tt and get syntax from the underlying extension
         let path_str = path.to_string_lossy();
-
-        // If the file path ends in '.tt'
         if let Some(stripped) = path_str.strip_suffix(".tt") {
             let underlying_path = Path::new::<str>(stripped.as_ref());
             // Use find_syntax_by_extension which is safer (doesn't do IO)
@@ -212,7 +219,6 @@ fn highlight_file(
         }
     };
 
-    let theme = &ts.themes["InspiredGitHub"];
     let mut highlighter = HighlightLines::new(syntax, theme);
 
     let mut lines = Vec::new();
@@ -365,6 +371,14 @@ fn render_tree_with_checkboxes<'a>(
         .collect()
 }
 
+fn get_templates_path() -> PathBuf {
+    // Get home directory and build path
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .expect("Could not determine home directory");
+    PathBuf::from(home).join(".bundlegem/templates")
+}
+
 fn cleanup_terminal(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
 ) -> Result<(), Box<dyn Error>> {
@@ -379,9 +393,12 @@ fn cleanup_terminal(
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Load syntax highlighting resources
-    let ss = SyntaxSet::load_defaults_newlines();
-    let ts = ThemeSet::load_defaults();
+    // Load syntax highlighting resources with extended syntax support
+    let ss = two_face::syntax::extra_newlines();
+    let theme_set = two_face::theme::extra();
+    let theme = &theme_set.get(EmbeddedThemeName::InspiredGithub);
+
+    // InspiredGitHub
 
     // Setup terminal
     enable_raw_mode()?;
@@ -389,12 +406,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-
-    // Get home directory and build path
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .expect("Could not determine home directory");
-    let templates_path = PathBuf::from(home).join(".bundlegem/templates");
+    let templates_path = get_templates_path();
 
     // Create app state
     let mut app = App::new(&templates_path)?;
@@ -520,7 +532,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 KeyCode::Char('q') => should_exit = true,
                                 KeyCode::Char('e') => break,
                                 KeyCode::Char('v') | KeyCode::Right | KeyCode::Char('l') => {
-                                    app.view_selected_file(&ss, &ts)?;
+                                    app.view_selected_file(&ss, theme)?;
                                 }
                                 KeyCode::Down | KeyCode::Char('j') => {
                                     app.tree_state.key_down();
@@ -576,6 +588,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         sorted_files.sort();
         for file in sorted_files {
             println!("  • {}", file);
+            // CHECK TODO: Do not allow overwriting existing files
+            // TODO: Make sure you copy files relative to the root template
+            let src_path = Path::new(file);
+            if let Some(dest_path) = src_path.file_name() {
+                if let Some(dest_path) = dest_path.to_string_lossy().strip_suffix(".tt") {
+                    if Path::new(dest_path).exists() {
+                        println!("Skipping copy because file existed locally. {}", dest_path);
+                        continue;
+                    }
+                    copy(src_path, Path::new(dest_path))?;
+                }
+            }
         }
         println!("{}", "=".repeat(50));
         println!("Total: {} file(s) selected\n", app.selected_files.len());
