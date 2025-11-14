@@ -182,7 +182,7 @@ fn highlight_file(
         }
     };
 
-    let theme = &ts.themes["base16-ocean.dark"];
+    let theme = &ts.themes["InspiredGitHub"];
     let mut highlighter = HighlightLines::new(syntax, theme);
 
     let mut lines = Vec::new();
@@ -207,6 +207,39 @@ fn highlight_file(
     Ok(lines)
 }
 
+fn should_show_entry(path: &Path) -> bool {
+    // Get the file name
+    let file_name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(name) => name,
+        None => return false,
+    };
+
+    // Hide .DS_Store files
+    if file_name.eq_ignore_ascii_case(".ds_store") {
+        return false;
+    }
+
+    if file_name.eq_ignore_ascii_case(".git") {
+        return false;
+    }
+
+    if file_name.eq_ignore_ascii_case("node_modules") {
+        return false;
+    }
+
+    // Always show directories
+    if path.is_dir() {
+        return true;
+    }
+
+    // For files, only show .tt files
+    if path.is_file() {
+        return file_name.ends_with(".tt");
+    }
+
+    false
+}
+
 fn build_tree(path: &Path) -> Result<Vec<TreeItem<'static, String>>, Box<dyn Error>> {
     let mut items = Vec::new();
 
@@ -215,7 +248,11 @@ fn build_tree(path: &Path) -> Result<Vec<TreeItem<'static, String>>, Box<dyn Err
     }
 
     let entries = fs::read_dir(path)?;
-    let mut paths: Vec<PathBuf> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| should_show_entry(p))
+        .collect();
 
     paths.sort();
 
@@ -239,7 +276,11 @@ fn build_tree_recursive(path: &Path) -> Result<Vec<TreeItem<'static, String>>, B
     let mut items = Vec::new();
 
     let entries = fs::read_dir(path)?;
-    let mut paths: Vec<PathBuf> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| should_show_entry(p))
+        .collect();
 
     paths.sort();
 
@@ -458,7 +499,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 _ => {}
                             };
                         }
-                        AppMode::FileView { content, .. } => {
+                        AppMode::FileView { .. } => {
                             let visible_height = terminal.size()?.height.saturating_sub(5) as usize;
                             match key.code {
                                 KeyCode::Char('q')
