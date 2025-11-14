@@ -153,28 +153,46 @@ fn syntect_to_ratatui_color(color: syntect::highlighting::Color) -> Color {
     Color::Rgb(color.r, color.g, color.b)
 }
 
+fn get_syntax_name_for_file(path: &Path) -> Option<&'static str> {
+    // Handle files without extensions by name
+    if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+        // Strip .tt if present to get the actual filename
+        let name = file_name.strip_suffix(".tt").unwrap_or(file_name);
+
+        match name.to_lowercase().as_str() {
+            "dockerfile" => return Some("Dockerfile"),
+            "gemfile" | "rakefile" | "guardfile" | "capfile" | "vagrantfile" => {
+                return Some("Ruby");
+            }
+            "makefile" => return Some("Makefile"),
+            "cmakelists.txt" => return Some("CMake"),
+            "justfile" => return Some("Just"),
+            _ => {}
+        }
+    }
+    None
+}
+
 fn highlight_file(
     content: &str,
     path: &Path,
     ss: &SyntaxSet,
     ts: &ThemeSet,
 ) -> Result<Vec<Line<'static>>, Box<dyn Error>> {
-    // Determine the syntax based on file extension
-
-    // if the file ends in a .tt extension
-    let syntax = if path.extension().and_then(|e| e.to_str()) == Some("tt") {
-        //
-        // Strip the .tt from file paths and get syntax from the underlying extension
-        //
+    // Determine the syntax based on file extension or name
+    let syntax = if let Some(syntax_name) = get_syntax_name_for_file(path) {
+        // Try to find by explicit syntax name
+        ss.find_syntax_by_name(syntax_name)
+            .unwrap_or_else(|| ss.find_syntax_plain_text())
+    } else if path.extension().and_then(|e| e.to_str()) == Some("tt") {
+        // For .tt files, strip the .tt and get syntax from the underlying extension
         let path_str = path.to_string_lossy();
 
         // If the file path ends in '.tt'
         if let Some(stripped) = path_str.strip_suffix(".tt") {
-            let path = Path::new::<str>(stripped.as_ref());
-
-            // the line here is a repetition of the let syntax line... I think
-            // it's bad at programming Rust???
-            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            let underlying_path = Path::new::<str>(stripped.as_ref());
+            // Use find_syntax_by_extension which is safer (doesn't do IO)
+            if let Some(ext) = underlying_path.extension().and_then(|e| e.to_str()) {
                 ss.find_syntax_by_extension(ext)
                     .unwrap_or_else(|| ss.find_syntax_plain_text())
             } else {
