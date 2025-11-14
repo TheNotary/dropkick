@@ -135,22 +135,31 @@ fn highlight_file(
     ss: &SyntaxSet,
     ts: &ThemeSet,
 ) -> Result<Vec<Line<'static>>, Box<dyn Error>> {
-    // Strip .tt extension if present to get the actual file type for syntax detection
-    let syntax_path = if path.extension().and_then(|e| e.to_str()) == Some("tt") {
-        // Remove .tt and use the remaining path for syntax detection
+    // Determine the syntax based on file extension
+    let syntax = if path.extension().and_then(|e| e.to_str()) == Some("tt") {
+        // For .tt files, strip the .tt and get syntax from the underlying extension
         let path_str = path.to_string_lossy();
         if let Some(stripped) = path_str.strip_suffix(".tt") {
-            PathBuf::from(stripped)
+            let underlying_path = Path::new::<str>(stripped.as_ref());
+            // Use find_syntax_by_extension which is safer (doesn't do IO)
+            if let Some(ext) = underlying_path.extension().and_then(|e| e.to_str()) {
+                ss.find_syntax_by_extension(ext)
+                    .unwrap_or_else(|| ss.find_syntax_plain_text())
+            } else {
+                ss.find_syntax_plain_text()
+            }
         } else {
-            path.to_path_buf()
+            ss.find_syntax_plain_text()
         }
     } else {
-        path.to_path_buf()
+        // For non-.tt files, use the extension directly
+        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            ss.find_syntax_by_extension(ext)
+                .unwrap_or_else(|| ss.find_syntax_plain_text())
+        } else {
+            ss.find_syntax_plain_text()
+        }
     };
-
-    let syntax = ss
-        .find_syntax_for_file(&syntax_path)?
-        .unwrap_or_else(|| ss.find_syntax_plain_text());
 
     let theme = &ts.themes["base16-ocean.dark"];
     let mut highlighter = HighlightLines::new(syntax, theme);
