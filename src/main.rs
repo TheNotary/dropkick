@@ -13,7 +13,7 @@ use ratatui::{
 };
 use std::{
     error::Error,
-    fs::copy,
+    fs::{copy, create_dir_all},
     io,
     path::{Path, PathBuf},
     time::Duration,
@@ -53,17 +53,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let theme_set = two_face::theme::extra();
     let theme = &theme_set.get(EmbeddedThemeName::InspiredGithub);
 
-    // InspiredGitHub
-
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    let templates_path = get_templates_path();
 
     // Create app state
+    let templates_path = get_templates_path();
     let mut app = app::App::new(&templates_path)?;
     let mut should_exit = false;
 
@@ -243,47 +241,38 @@ fn main() -> Result<(), Box<dyn Error>> {
         sorted_files.sort();
         for file in sorted_files {
             println!("  • {}", file);
-            // TODO: Make sure you copy files relative to the root template
             let src_path = Path::new(file);
             let template_root = get_templates_path();
 
-            //
+            // Get relative dest path by stripping prefix template_path from src_path
             if let Ok(dest_path) = src_path
                 .strip_prefix(template_root)
                 .and_then(|p| p.strip_prefix("template-arduino"))
             {
-                // FIXME: I NEED TO SORT OUT HOW TO GET THE FIRST FOLDER OF THE PATH
-                // let _blah = dest_path.components().collect();
+                // Strip the .tt suffix from our relative dest
+                if let Some(dest_string) = dest_path.to_string_lossy().strip_suffix(".tt") {
+                    let dest_path = Path::new(dest_string);
 
-                if dest_path.exists() {
-                    println!(
-                        "Skipping copy because file existed locally. {}",
-                        dest_path.to_string_lossy()
-                    );
-                    continue;
+                    // Abort if a file already exists at the destinations path
+                    if dest_path.exists() {
+                        println!(
+                            "Skipping copy because file existed locally. {}",
+                            dest_path.to_string_lossy()
+                        );
+                        continue;
+                    }
+
+                    // Create parent folders if needed
+                    if let Some(parent_dir) = dest_path.parent() {
+                        create_dir_all(parent_dir)
+                            .expect("error: unable to create folders to import file.");
+                    }
+
+                    // Perform file copy
+                    println!("About to do copy: {}", src_path.to_string_lossy());
+                    copy(src_path, dest_path).expect("error: couldn't copy src to dest");
                 }
-                println!("About to do copy: {}", src_path.to_string_lossy());
-                copy(src_path, Path::new(dest_path))?;
-                // This is how I test things out as I go...
-                // println!("Unwrapping result works the way I think");
-                // return Ok(());
             }
-
-            // // FIXME: Below is bad, delete after above works
-            // // dest_path = "my_file.rb.tt"
-            // if let Some(dest_path) = src_path.file_name() {
-            //     // dest_path = "my_file.rb"
-            //     if let Some(dest_path) = dest_path.to_string_lossy().strip_suffix(".tt") {
-            //         //
-            //         if Path::new(dest_path).exists() {
-            //             println!("Skipping copy because file existed locally. {}", dest_path);
-            //             continue;
-            //         }
-            //         // TODO: delete the first portion of src_path using template_root as reference.
-            //         // this will show you how deep you need to place the
-            //         copy(src_path, Path::new(dest_path))?;
-            //     }
-            // }
         }
         println!("{}", "=".repeat(50));
         println!("Total: {} file(s) selected\n", app.selected_files.len());
