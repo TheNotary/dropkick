@@ -31,7 +31,7 @@ fn get_templates_path() -> PathBuf {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .expect("Could not determine home directory");
-    PathBuf::from(home).join(".bundlegem/templates")
+    PathBuf::from(home).join(".dropkick/templates")
 }
 
 fn cleanup_terminal(
