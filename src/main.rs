@@ -244,33 +244,51 @@ fn main() -> Result<(), Box<dyn Error>> {
             let src_path = Path::new(file);
             let template_root = get_templates_path();
 
-            // Get relative dest path by stripping prefix template_path from src_path
-            if let Ok(dest_path) = src_path
-                .strip_prefix(template_root)
-                .and_then(|p| p.strip_prefix("template-arduino"))
-            {
-                // Strip the .tt suffix from our relative dest
-                if let Some(dest_string) = dest_path.to_string_lossy().strip_suffix(".tt") {
-                    let dest_path = Path::new(dest_string);
+            // Get relative dest path by stripping prefix template_root from src_path
+            if let Ok(dest_path) = src_path.strip_prefix(template_root) {
+                println!(
+                    "Ok... I have a dest_path stripped of the template_root: {}",
+                    dest_path.to_string_lossy()
+                );
+                // Also strip out the template folder from the result to give a
+                // proper relative dest path
+                if let Some(first) = dest_path.iter().next().and_then(|p| p.to_str()) {
+                    println!("Ok, I have a first folder name {}", first);
 
-                    // Abort if a file already exists at the destinations path
-                    if dest_path.exists() {
-                        println!(
-                            "Skipping copy because file existed locally. {}",
-                            dest_path.to_string_lossy()
-                        );
-                        continue;
+                    let first = format!("{}/", first);
+                    // Strip the template folder name from the dest_path
+                    if let Some(dest_path) = dest_path.to_string_lossy().strip_prefix(&first) {
+                        println!("Ok, I have a finished dest_path: {}", dest_path);
+                        // Strip the .tt suffix from our relative dest
+                        if let Some(dest_string) = dest_path.strip_suffix(".tt") {
+                            println!("Ok, I have a finished dest_path: {}", dest_path);
+
+                            let dest_path = Path::new(dest_string);
+                            println!(
+                                "Destination of copy would be: {}",
+                                dest_path.to_string_lossy()
+                            );
+
+                            // Abort if a file already exists at the destinations path
+                            if dest_path.exists() {
+                                println!(
+                                    "Skipping copy because file existed locally. {}",
+                                    dest_path.to_string_lossy()
+                                );
+                                continue;
+                            }
+
+                            // Create parent folders if needed
+                            if let Some(parent_dir) = dest_path.parent() {
+                                create_dir_all(parent_dir)
+                                    .expect("error: unable to create folders to import file.");
+                            }
+
+                            // Perform file copy
+                            println!("About to do copy: {}", src_path.to_string_lossy());
+                            copy(src_path, dest_path).expect("error: couldn't copy src to dest");
+                        }
                     }
-
-                    // Create parent folders if needed
-                    if let Some(parent_dir) = dest_path.parent() {
-                        create_dir_all(parent_dir)
-                            .expect("error: unable to create folders to import file.");
-                    }
-
-                    // Perform file copy
-                    println!("About to do copy: {}", src_path.to_string_lossy());
-                    copy(src_path, dest_path).expect("error: couldn't copy src to dest");
                 }
             }
         }
