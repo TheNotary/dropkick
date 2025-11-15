@@ -8,7 +8,7 @@ categories = ["command-line-interface"]
 keywords = ["tui", "templates"]
 
 [[bin]]
-name = "dk"
+name = "dropkick"
 path = "src/main.rs"
 
 [dependencies]
