@@ -2,6 +2,10 @@
 name = "dropkick"
 version = "0.0.0"
 edition = "2024"
+license = "MIT"
+readme = "README.md"
+categories = ["command-line-interface"]
+keywords = ["tui", "templates"]
 
 [[bin]]
 name = "dk"
@@ -13,3 +17,4 @@ crossterm = "0.28"
 tui-tree-widget = "0.22"
 syntect = "5.0"
 two-face = "0.4"
+
