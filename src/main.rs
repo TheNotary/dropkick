@@ -243,8 +243,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         for file in sorted_files {
             let src_path = Path::new(file);
 
-            let result = import_selected_template_file(src_path);
-            n_imports += result;
+            n_imports += import_selected_template_file(src_path).is_some() as u32;
         }
 
         // Print Summary
@@ -261,45 +260,36 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn import_selected_template_file(src_path: &Path) -> u32 {
+fn import_selected_template_file(src_path: &Path) -> Option<u8> {
     let template_root = get_templates_path();
 
-    // Get relative dest path by stripping prefix template_root from src_path
-    if let Ok(dest_path) = src_path.strip_prefix(template_root) {
-        // Also strip out the template folder from the result to give a
-        // proper relative dest path
-        if let Some(first) = dest_path.iter().next().and_then(|p| p.to_str()) {
-            let first = format!("{}/", first);
-            // Strip the template folder name from the dest_path
-            if let Some(dest_path) = dest_path.to_string_lossy().strip_prefix(&first) {
-                // Strip the .tt suffix from our relative dest
-                if let Some(dest_string) = dest_path.strip_suffix(".tt") {
-                    // println!("Destination of copy would be: {}", dest_path);
-                    let dest_path = Path::new(dest_string);
+    // Compute relative destination, and create a PathBuff, since we need
+    // to mutate it, we can't just have it be an &Path???
+    let mut dest = src_path.strip_prefix(template_root).ok()?.to_path_buf();
 
-                    // Abort if a file already exists at the destinations path
-                    if dest_path.exists() {
-                        println!(
-                            "Skipping copy of '{}' because file existed locally.",
-                            dest_path.to_string_lossy()
-                        );
-                        return 0;
-                    }
+    // Remove the first segment (template folder)
+    dest = dest.iter().skip(1).collect::<PathBuf>();
 
-                    // Create parent folders if needed
-                    if let Some(parent_dir) = dest_path.parent() {
-                        create_dir_all(parent_dir)
-                            .expect("error: unable to create folders to import file.");
-                        println!("  • {}", src_path.to_string_lossy());
-                    }
+    // Remove `.tt` suffix
+    dest = dest.with_extension("");
 
-                    // Perform file copy
-                    // println!("About to copy '{}'", src_path.to_string_lossy());
-                    copy(src_path, dest_path).expect("error: couldn't copy src to dest");
-                    return 1;
-                }
-            }
-        }
+    // Abort if a file already exists
+    if dest.exists() {
+        println!(
+            "Skipping copy of '{}' because file existed locally.",
+            dest.to_string_lossy()
+        );
+        return None;
     }
-    return 0;
+
+    // Create parent directories
+    if let Some(parent) = dest.parent() {
+        create_dir_all(parent).expect("error: unable to create parent directories.");
+        println!("  • {}", src_path.to_string_lossy());
+    }
+
+    // Copy file
+    copy(src_path, &dest).expect("error: couldn't copy src to dest");
+
+    Some(1)
 }
