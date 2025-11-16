@@ -2,9 +2,11 @@ use std::{
     collections::HashSet,
     error::Error,
     fs,
+    io::Stdout,
     path::{Path, PathBuf},
 };
 
+use crossterm::event::KeyEvent;
 use syntect::{
     easy::HighlightLines,
     highlighting::{Style as SyntectStyle, Theme},
@@ -15,8 +17,9 @@ use syntect::{
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 use ratatui::{
-    Frame,
+    Frame, Terminal,
     layout::{Constraint, Direction, Layout},
+    prelude::CrosstermBackend,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
@@ -68,6 +71,20 @@ impl App {
                 content,
                 scroll,
             } => self.render_file_view(f, path, content, *scroll),
+        }
+    }
+
+    pub fn handle_key(
+        &mut self,
+        key: KeyEvent,
+        terminal: &Terminal<CrosstermBackend<Stdout>>,
+        &ss: &Something,
+        theme: &Theme,
+        should_exit: &mut bool,
+    ) -> Result<(), Box<dyn Error>> {
+        match &self.mode {
+            AppMode::TreeView => self.handle_key_tree(key, ss, theme, should_exit),
+            AppMode::FileView { .. } => self.handle_key_file_view(key, terminal),
         }
     }
 

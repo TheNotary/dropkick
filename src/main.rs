@@ -18,27 +18,6 @@ use crate::app::AppMode;
 
 mod app;
 
-fn get_templates_path() -> PathBuf {
-    // Get home directory and build path
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .expect("Could not determine home directory");
-    PathBuf::from(home).join(".dropkick/templates")
-}
-
-fn cleanup_terminal(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-) -> Result<(), Box<dyn Error>> {
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-    Ok(())
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     // Load syntax highlighting resources with extended syntax support
     let ss = two_face::syntax::extra_newlines();
@@ -65,6 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             ////////////////////////
             // Handle User Inputs //
             ////////////////////////
+            /// TODO: app.handle_key(key, &terminal, &ss, theme, &mut should_exit)?;
             //
             // Poll for events with a small timeout
             if poll(Duration::from_millis(0))? {
@@ -155,6 +135,27 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("\nNo files selected.\n");
     }
 
+    Ok(())
+}
+
+fn get_templates_path() -> PathBuf {
+    // Get home directory and build path
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .expect("Could not determine home directory");
+    PathBuf::from(home).join(".dropkick/templates")
+}
+
+fn cleanup_terminal(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+) -> Result<(), Box<dyn Error>> {
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
     Ok(())
 }
 
