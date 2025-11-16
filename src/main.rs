@@ -3,14 +3,7 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{
-    Terminal,
-    backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
-};
+use ratatui::{Terminal, backend::CrosstermBackend};
 use std::{
     error::Error,
     fs::{copy, create_dir_all},
@@ -19,7 +12,6 @@ use std::{
     time::Duration,
 };
 
-use tui_tree_widget::Tree;
 use two_face::theme::EmbeddedThemeName;
 
 use crate::app::AppMode;
@@ -68,106 +60,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Main loop with error handling
     let result = (|| -> Result<(), Box<dyn Error>> {
         while !should_exit {
-            terminal.draw(|f| {
-            match &app.mode {
-                AppMode::TreeView => {
-                    let chunks = Layout::default()
-                        .direction(Direction::Vertical)
-                        .constraints([Constraint::Min(0), Constraint::Length(3)])
-                        .split(f.area());
+            terminal.draw(|f| app.render(f))?;
 
-                    let display_items = app::render_tree_with_checkboxes(&app.items, &app);
-
-                    let tree_widget = Tree::new(&display_items)
-                        .expect("Failed to create tree widget")
-                        .block(
-                            Block::default()
-                                .borders(Borders::ALL)
-                                .title(format!(" Templates: {} ({} selected) ",
-                                    templates_path.display(),
-                                    app.selected_files.len()
-                                ))
-                        )
-                        .highlight_style(
-                            Style::default()
-                                .fg(Color::Black)
-                                .bg(Color::Cyan)
-                                .add_modifier(Modifier::BOLD)
-                        )
-                        .highlight_symbol(">> ");
-
-                    f.render_stateful_widget(tree_widget, chunks[0], &mut app.tree_state);
-
-                    let help = Paragraph::new("↑/k: Up | ↓/j: Down | ←/h: Collapse | →/l: Expand/View | Space: Toggle | e: Export | q: Quit")
-                        .block(Block::default().borders(Borders::ALL).title(" Help "))
-                        .style(Style::default().fg(Color::Gray));
-
-                    f.render_widget(help, chunks[1]);
-                }
-                AppMode::FileView { path, content, scroll } => {
-                    let chunks = Layout::default()
-                        .direction(Direction::Vertical)
-                        .constraints([Constraint::Min(0), Constraint::Length(3)])
-                        .split(f.area());
-
-                    let visible_height = chunks[0].height.saturating_sub(2) as usize;
-                    let total_lines = content.len();
-
-                    // Build visible content with tildes for lines beyond EOF
-                    let mut visible_content: Vec<Line> = Vec::new();
-                    for i in 0..visible_height {
-                        let line_idx = scroll + i;
-                        if line_idx < total_lines {
-                            visible_content.push(content[line_idx].clone());
-                        } else {
-                            // Add tilde for empty lines beyond EOF
-                            visible_content.push(Line::from(
-                                Span::styled("~", Style::default().fg(Color::DarkGray))
-                            ));
-                        }
-                    }
-
-                    let file_name = PathBuf::from(path)
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or(&path)
-                        .to_string();
-
-                    // Calculate scroll position indicator
-                    let position = if total_lines == 0 {
-                        "Empty".to_string()
-                    } else if *scroll == 0 {
-                        "Top".to_string()
-                    } else if scroll + visible_height >= total_lines {
-                        "Bottom".to_string()
-                    } else {
-                        let percentage = ((scroll + visible_height / 2) * 100) / total_lines;
-                        format!("{}%", percentage)
-                    };
-
-                    let paragraph = Paragraph::new(visible_content)
-                        .block(
-                            Block::default()
-                                .borders(Borders::ALL)
-                                .title(format!(" Viewing: {} ({} - line {}/{}) ",
-                                    file_name,
-                                    position,
-                                    scroll + 1,
-                                    total_lines.max(1)
-                                ))
-                        );
-
-                    f.render_widget(paragraph, chunks[0]);
-
-                    let help = Paragraph::new("↑/k: Scroll Up | ↓/j: Scroll Down | ←/h: Back to Tree | q/Esc: Back to Tree")
-                        .block(Block::default().borders(Borders::ALL).title(" Help "))
-                        .style(Style::default().fg(Color::Gray));
-
-                    f.render_widget(help, chunks[1]);
-                }
-            }
-        })?;
-
+            ////////////////////////
+            // Handle User Inputs //
+            ////////////////////////
+            //
             // Poll for events with a small timeout
             if poll(Duration::from_millis(0))? {
                 // Drain all pending events and only process the last one

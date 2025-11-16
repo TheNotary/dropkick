@@ -12,12 +12,17 @@ use syntect::{
     util::LinesWithEndings,
 };
 
-use tui_tree_widget::{TreeItem, TreeState};
+use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 use ratatui::{
-    style::{Color, Style},
+    Frame,
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
 };
+
+use crate::get_templates_path;
 
 pub struct App {
     pub(crate) tree_state: TreeState<String>,
@@ -53,6 +58,17 @@ impl App {
             selected_files: HashSet::new(),
             mode: AppMode::TreeView,
         })
+    }
+
+    pub fn render(&mut self, f: &mut Frame) {
+        match &self.mode {
+            AppMode::TreeView => self.render_tree(f),
+            AppMode::FileView {
+                path,
+                content,
+                scroll,
+            } => self.render_file_view(f, path, content, *scroll),
+        }
     }
 
     pub fn toggle_selected_file(&mut self) {
@@ -143,6 +159,103 @@ impl App {
         } else {
             text.to_string()
         }
+    }
+
+    fn render_tree(&mut self, f: &mut Frame) {
+        let templates_path = get_templates_path();
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(3)])
+            .split(f.area());
+
+        let display_items = render_tree_with_checkboxes(&self.items, &self);
+
+        let tree_widget = Tree::new(&display_items)
+            .expect("Failed to create tree widget")
+            .block(Block::default().borders(Borders::ALL).title(format!(
+                " Templates: {} ({} selected) ",
+                templates_path.display(),
+                self.selected_files.len()
+            )))
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol(">> ");
+
+        f.render_stateful_widget(tree_widget, chunks[0], &mut self.tree_state);
+
+        let help = Paragraph::new("↑/k: Up | ↓/j: Down | ←/h: Collapse | →/l: Expand/View | Space: Toggle | e: Export | q: Quit")
+                        .block(Block::default().borders(Borders::ALL).title(" Help "))
+                        .style(Style::default().fg(Color::Gray));
+
+        f.render_widget(help, chunks[1]);
+    }
+
+    fn render_file_view(&self, f: &mut Frame, path: &str, content: &[Line], scroll: usize) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(3)])
+            .split(f.area());
+
+        let visible_height = chunks[0].height.saturating_sub(2) as usize;
+        let total_lines = content.len();
+
+        // Build visible content with tildes for lines beyond EOF
+        let mut visible_content: Vec<Line> = Vec::new();
+        for i in 0..visible_height {
+            let line_idx = scroll + i;
+            if line_idx < total_lines {
+                visible_content.push(content[line_idx].clone());
+            } else {
+                // Add tilde for empty lines beyond EOF
+                visible_content.push(Line::from(Span::styled(
+                    "~",
+                    Style::default().fg(Color::DarkGray),
+                )));
+            }
+        }
+
+        let file_name = PathBuf::from(path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(&path)
+            .to_string();
+
+        // Calculate scroll position indicator
+        let position = if total_lines == 0 {
+            "Empty".to_string()
+        } else if scroll == 0 {
+            "Top".to_string()
+        } else if scroll + visible_height >= total_lines {
+            "Bottom".to_string()
+        } else {
+            let percentage = ((scroll + visible_height / 2) * 100) / total_lines;
+            format!("{}%", percentage)
+        };
+
+        let paragraph = Paragraph::new(visible_content).block(
+            Block::default().borders(Borders::ALL).title(format!(
+                " Viewing: {} ({} - line {}/{}) ",
+                file_name,
+                position,
+                scroll + 1,
+                total_lines.max(1)
+            )),
+        );
+
+        f.render_widget(paragraph, chunks[0]);
+
+        let help = Paragraph::new(
+            "↑/k: Scroll Up | ↓/j: Scroll Down | ←/h: Back to Tree | q/Esc: Back to Tree",
+        )
+        .block(Block::default().borders(Borders::ALL).title(" Help "))
+        .style(Style::default().fg(Color::Gray));
+
+        f.render_widget(help, chunks[1]);
     }
 }
 
