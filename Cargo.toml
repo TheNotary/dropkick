@@ -4,6 +4,7 @@ version = "0.0.0"
 edition = "2024"
 license = "MIT"
 readme = "README.md"
+description = "A TUI for browsing and importing code samples into the workding directory defined per https://github.com/thenotary/bundlegem"
 categories = ["command-line-interface"]
 keywords = ["tui", "templates"]
 
