@@ -50,7 +50,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                     match action {
                         Action::Quit => should_exit = true,
                         Action::Extract => {
-                            println!("SHOULD EXTRACT");
                             break;
                         }
                         Action::Continue => {}
@@ -73,7 +72,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Print selected files if user pressed 'e'
     if !should_exit && !app.selected_files.is_empty() {
-        println!("\nSelected files:");
+        println!("\nSelected template files imported:");
         println!("{}", "=".repeat(50));
         let mut n_imports = 0;
         let mut sorted_files: Vec<_> = app.selected_files.iter().collect();
@@ -99,11 +98,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn get_templates_path() -> PathBuf {
-    // Get home directory and build path
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .expect("Could not determine home directory");
-    PathBuf::from(home).join(".dropkick/templates")
+    get_home().join(".dropkick/templates")
 }
 
 fn cleanup_terminal(
@@ -143,12 +138,28 @@ fn import_selected_template_file(src_path: &Path) -> Option<u8> {
 
     // Create parent directories
     if let Some(parent) = dest.parent() {
+        let display_path = clean_path(src_path);
         create_dir_all(parent).expect("error: unable to create parent directories.");
-        println!("  • {}", src_path.to_string_lossy());
+        println!("  • {}", display_path.to_string_lossy());
     }
 
     // Copy file
     copy(src_path, &dest).expect("error: couldn't copy src to dest");
 
     Some(1)
+}
+
+fn get_home() -> PathBuf {
+    std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map(PathBuf::from)
+        .expect("Could not determine home directory")
+}
+
+fn clean_path(src_path: &Path) -> PathBuf {
+    let home = get_home();
+    src_path
+        .strip_prefix(&home)
+        .map(|p| PathBuf::from("~").join(p))
+        .unwrap_or_else(|_| src_path.to_path_buf())
 }

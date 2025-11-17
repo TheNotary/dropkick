@@ -25,7 +25,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use crate::get_templates_path;
+use crate::{clean_path, get_templates_path};
 
 pub enum Action {
     Quit,
@@ -237,11 +237,12 @@ impl App {
 
         let display_items = render_tree_with_checkboxes(&self.items, &self);
 
+        let clean_templates_path = clean_path(&templates_path.to_path_buf());
         let tree_widget = Tree::new(&display_items)
             .expect("Failed to create tree widget")
             .block(Block::default().borders(Borders::ALL).title(format!(
                 " Templates: {} ({} selected) ",
-                templates_path.display(),
+                clean_templates_path.to_string_lossy(),
                 self.selected_files.len()
             )))
             .highlight_style(
