@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, poll},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, poll},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -14,7 +14,7 @@ use std::{
 
 use two_face::theme::EmbeddedThemeName;
 
-use crate::app::AppMode;
+use crate::app::Action;
 
 mod app;
 
@@ -44,56 +44,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             ////////////////////////
             // Handle User Inputs //
             ////////////////////////
-            /// TODO: app.handle_key(key, &terminal, &ss, theme, &mut should_exit)?;
-            //
-            // Poll for events with a small timeout
             if poll(Duration::from_millis(0))? {
-                // Drain all pending events and only process the last one
-                let mut last_key_event = None;
-                while poll(Duration::from_millis(0))? {
-                    if let Event::Key(key) = event::read()? {
-                        last_key_event = Some(key);
-                    }
-                }
-
-                if let Some(key) = last_key_event {
-                    match &app.mode {
-                        AppMode::TreeView => {
-                            match key.code {
-                                KeyCode::Char('q') => should_exit = true,
-                                KeyCode::Char('e') => break,
-                                KeyCode::Char('v') | KeyCode::Right | KeyCode::Char('l') => {
-                                    app.view_selected_file(&ss, theme)?;
-                                }
-                                KeyCode::Down | KeyCode::Char('j') => {
-                                    app.tree_state.key_down();
-                                }
-                                KeyCode::Up | KeyCode::Char('k') => {
-                                    app.tree_state.key_up();
-                                }
-                                KeyCode::Left | KeyCode::Char('h') => {
-                                    app.handle_left_key();
-                                }
-                                KeyCode::Char(' ') => app.toggle_selected_file(),
-                                _ => {}
-                            };
+                if let Event::Key(key) = event::read()? {
+                    // Drain all pending events and only process the last one
+                    // is this real code???
+                    let key = Some(key).unwrap();
+                    let action = app.handle_key(key, &terminal, &ss, theme)?;
+                    match action {
+                        Action::Quit => should_exit = true,
+                        Action::Extract => {
+                            println!("SHOULD EXTRACT");
+                            break;
                         }
-                        AppMode::FileView { .. } => {
-                            let visible_height = terminal.size()?.height.saturating_sub(5) as usize;
-                            match key.code {
-                                KeyCode::Char('q')
-                                | KeyCode::Esc
-                                | KeyCode::Left
-                                | KeyCode::Char('h') => {
-                                    app.exit_file_view();
-                                }
-                                KeyCode::Down | KeyCode::Char('j') => {
-                                    app.scroll_down(visible_height)
-                                }
-                                KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
-                                _ => {}
-                            };
-                        }
+                        Action::Continue => {}
                     }
                 }
             }

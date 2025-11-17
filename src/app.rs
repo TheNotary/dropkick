@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent};
 use syntect::{
     easy::HighlightLines,
     highlighting::{Style as SyntectStyle, Theme},
@@ -26,6 +26,12 @@ use ratatui::{
 };
 
 use crate::get_templates_path;
+
+pub enum Action {
+    Quit,
+    Extract,
+    Continue,
+}
 
 pub struct App {
     pub(crate) tree_state: TreeState<String>,
@@ -78,14 +84,57 @@ impl App {
         &mut self,
         key: KeyEvent,
         terminal: &Terminal<CrosstermBackend<Stdout>>,
-        &ss: &Something,
+        ss: &SyntaxSet,
         theme: &Theme,
-        should_exit: &mut bool,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<Action, Box<dyn Error>> {
         match &self.mode {
-            AppMode::TreeView => self.handle_key_tree(key, ss, theme, should_exit),
+            AppMode::TreeView => self.handle_key_tree(key, ss, theme),
             AppMode::FileView { .. } => self.handle_key_file_view(key, terminal),
         }
+    }
+
+    fn handle_key_tree(
+        &mut self,
+        key: KeyEvent,
+        ss: &SyntaxSet,
+        theme: &Theme,
+    ) -> Result<Action, Box<dyn Error>> {
+        match key.code {
+            KeyCode::Char('q') => return Ok(Action::Quit),
+            KeyCode::Char('e') => return Ok(Action::Extract),
+            KeyCode::Char('v') | KeyCode::Right | KeyCode::Char('l') => {
+                self.view_selected_file(&ss, theme)?;
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.tree_state.key_down();
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.tree_state.key_up();
+            }
+            KeyCode::Left | KeyCode::Char('h') => {
+                self.handle_left_key();
+            }
+            KeyCode::Char(' ') => self.toggle_selected_file(),
+            _ => {}
+        };
+        Ok(Action::Continue)
+    }
+
+    fn handle_key_file_view(
+        &mut self,
+        key: KeyEvent,
+        terminal: &Terminal<CrosstermBackend<Stdout>>,
+    ) -> Result<Action, Box<dyn Error>> {
+        let visible_height = terminal.size()?.height.saturating_sub(5) as usize;
+        match key.code {
+            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => {
+                self.exit_file_view();
+            }
+            KeyCode::Down | KeyCode::Char('j') => self.scroll_down(visible_height),
+            KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
+            _ => {}
+        };
+        Ok(Action::Continue)
     }
 
     pub fn toggle_selected_file(&mut self) {
