@@ -46,9 +46,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             ////////////////////////
             if poll(Duration::from_millis(0))? {
                 if let Event::Key(key) = event::read()? {
-                    // Drain all pending events and only process the last one
-                    // is this real code???
-                    let key = Some(key).unwrap();
                     let action = app.handle_key(key, &terminal, &ss, theme)?;
                     match action {
                         Action::Quit => should_exit = true,
