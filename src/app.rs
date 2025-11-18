@@ -463,9 +463,10 @@ fn should_show_entry(path: &Path) -> bool {
 //
 
 pub fn interpolate_file(content: &str) -> String {
-    match get_repo_config() {
-        Ok(repo_config) => render_template_with_handlebars(&content, &repo_config)
-            .expect("error template rendering"),
+    let repo_config = get_repo_config();
+
+    match render_template_with_handlebars(&content, &repo_config) {
+        Ok(interpolation) => interpolation,
         _ => content.to_string(),
     }
 }
