@@ -1,20 +1,26 @@
-// use serde::Serialize;
+use regex::Regex;
+use serde_json::json;
 
-use std::error::Error;
-use tinytemplate::TinyTemplate;
+use handlebars::{Handlebars, RenderError};
 
-use crate::interpolation_config::ConfigBuilder;
+use crate::{config::Config, interpolation_config::ConfigBuilder};
 
-pub fn render_template(template: &str) -> Result<(), Box<dyn Error>> {
-    let mut tt = TinyTemplate::new();
-    tt.add_template("main", template)?;
+pub fn render_template_with_handlebars(
+    my_template: &str,
+    repo_config: &Config,
+) -> Result<String, RenderError> {
+    // let re = Regex::new(r"#\{config\[:(\w+)\]\}").unwrap();
+    let re = Regex::new(r"<%=\s*config\[\s*:(\w+)\s*\]\s*%>").unwrap();
+    let my_template = re.replace_all(my_template, "{{$1}}").to_string();
 
-    let context = ConfigBuilder::new("the name".to_string(), "the prefix".to_string())
-        .build()
-        .expect("error: it went wrong");
+    let reg = Handlebars::new();
 
-    let rendered = tt.render("main", &context)?;
-    println!("{}", rendered);
+    let context = ConfigBuilder::new(
+        repo_config.project.name.clone(),
+        repo_config.project.template.clone(),
+    )
+    .build()
+    .expect("error: it went wrong");
 
-    Ok(())
+    reg.render_template(&my_template, &json!(context))
 }

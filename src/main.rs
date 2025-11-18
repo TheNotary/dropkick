@@ -4,7 +4,6 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
-use regex::Regex;
 use std::{
     error::Error,
     fs::{copy, create_dir_all},
@@ -15,9 +14,10 @@ use std::{
 
 use two_face::theme::EmbeddedThemeName;
 
-use crate::{app::Action, template_rendering::render_template};
+use crate::app::Action;
 
 mod app;
+mod config;
 mod interpolation_config;
 mod template_rendering;
 
@@ -96,16 +96,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     } else if !should_exit {
         println!("\nNo files selected.\n");
     }
-
-    let my_template = "
-Hello #{config[:name]}!
-k8s stuff: #{config[:k8s_domain]}
-";
-
-    let re = Regex::new(r"#\{config\[:(\w+)\]\}").unwrap();
-    let my_template = re.replace_all(my_template, "{$1}").to_string();
-
-    render_template(&my_template).expect("error template rendering");
 
     Ok(())
 }

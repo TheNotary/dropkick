@@ -52,25 +52,25 @@ impl ConfigBuilder {
         }
     }
 
-    pub fn template(mut self, template: String) -> Self {
-        self.template = template;
-        self
-    }
+    // pub fn template(mut self, template: String) -> Self {
+    //     self.template = template;
+    //     self
+    // }
 
-    pub fn test(mut self, test: bool) -> Self {
-        self.test = test;
-        self
-    }
+    // pub fn test(mut self, test: bool) -> Self {
+    //     self.test = test;
+    //     self
+    // }
 
-    pub fn ext(mut self, ext: String) -> Self {
-        self.ext = ext;
-        self
-    }
+    // pub fn ext(mut self, ext: String) -> Self {
+    //     self.ext = ext;
+    //     self
+    // }
 
-    pub fn bin(mut self, bin: bool) -> Self {
-        self.bin = bin;
-        self
-    }
+    // pub fn bin(mut self, bin: bool) -> Self {
+    //     self.bin = bin;
+    //     self
+    // }
 
     pub fn build(self) -> Result<InterpolationConfig, String> {
         let name = &self.name;

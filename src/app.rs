@@ -25,7 +25,10 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use crate::{clean_path, get_templates_path};
+use crate::{
+    clean_path, config::get_repo_config, get_templates_path,
+    template_rendering::render_template_with_handlebars,
+};
 
 pub enum Action {
     Quit,
@@ -161,7 +164,8 @@ impl App {
                 // Try to read as UTF-8, skip if binary
                 match fs::read_to_string(&path) {
                     Ok(content) => {
-                        let highlighted = highlight_file(&content, &path, ss, theme)?;
+                        let interpolated = interpolate_file(&content);
+                        let highlighted = highlight_file(&interpolated, &path, ss, theme)?;
 
                         self.mode = AppMode::FileView {
                             path: selected.clone(),
@@ -457,6 +461,11 @@ fn should_show_entry(path: &Path) -> bool {
 //
 // File Viewer
 //
+
+fn interpolate_file(content: &str) -> String {
+    let repo_config = get_repo_config().expect("error: problem with get_repo_config()");
+    render_template_with_handlebars(&content, &repo_config).expect("error template rendering")
+}
 
 pub fn highlight_file(
     content: &str,
