@@ -48,10 +48,11 @@ After selecting the appropriate file with the space bar and hitting `e` to extra
 ## Features (COMPLETE)
 
 - `dk` - Opens an interactive TUI folder view of all local templates.  You can pull in files or kicklets from this interface.
+- Support interpolation of ERB templating
+  - what happens if there's no config again?
 
 ## Features (WIP)
 
-- Support interpolation of ERB templating
 - `dk --checkout template/file_name` - Checks out a file from a template and drops it into the local folder
 - `dk --kicklet kicklet_name` - Checks out all files from a "kicklet" into the working tree.  A kicklet is defined in a template's `bundlegem.yaml` file or something? It should allow all related aspects of a pattern to be injected into existing files without ruining things.
 - Do some kind of port for bundlegem to be installable as a single cargo command

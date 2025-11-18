@@ -462,9 +462,12 @@ fn should_show_entry(path: &Path) -> bool {
 // File Viewer
 //
 
-fn interpolate_file(content: &str) -> String {
-    let repo_config = get_repo_config().expect("error: problem with get_repo_config()");
-    render_template_with_handlebars(&content, &repo_config).expect("error template rendering")
+pub fn interpolate_file(content: &str) -> String {
+    match get_repo_config() {
+        Ok(repo_config) => render_template_with_handlebars(&content, &repo_config)
+            .expect("error template rendering"),
+        _ => content.to_string(),
+    }
 }
 
 pub fn highlight_file(

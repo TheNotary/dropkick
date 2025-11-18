@@ -6,7 +6,7 @@ use crossterm::{
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::{
     error::Error,
-    fs::{copy, create_dir_all},
+    fs::{self, create_dir_all},
     io,
     path::{Path, PathBuf},
     time::Duration,
@@ -14,7 +14,7 @@ use std::{
 
 use two_face::theme::EmbeddedThemeName;
 
-use crate::app::Action;
+use crate::app::{Action, interpolate_file};
 
 mod app;
 mod config;
@@ -147,7 +147,9 @@ fn import_selected_template_file(src_path: &Path) -> Option<u8> {
     }
 
     // Copy file
-    copy(src_path, &dest).expect("error: couldn't copy src to dest");
+    let content = fs::read_to_string(src_path).expect("it should just read the friggin file!");
+    let interpolated = interpolate_file(&content);
+    fs::write(dest, interpolated).expect("It should just write the file");
 
     Some(1)
 }
